@@ -10,8 +10,8 @@ import csv
 from threading import Lock
 
 proxies = {
-    'http': 'http://127.0.0.1:2080',
-    'https': 'http://127.0.0.1:2080'
+    # 'http': 'http://127.0.0.1:2080',
+    # 'https': 'http://127.0.0.1:2080'
 }
 
 key = 'AIzaSyBsHts_r9-a-4_xRuWgiuBHLWfe9wWuWfQ'
