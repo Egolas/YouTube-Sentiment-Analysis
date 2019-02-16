@@ -1,9 +1,10 @@
-import comment_downloader as CD
+import data_downloader as DD
 import fancySentiment as FS
 import sentimentYouTube as SYT
 import os
 import pickle
 import csv
+import sys
 
 
 def get_file_name(file_dir):
@@ -59,7 +60,7 @@ def main():
     # # if count = -1, fetch all comments
     # count = int(input("Enter the no. of comment to extract : "))
     #
-    # comments = CD.commentExtract(videoId, count)
+    # comments = DD.commentExtract(videoId, count)
     #
     # FS.fancySentiment(comments)
     ids = ['李子柒',
@@ -81,9 +82,9 @@ def main():
            ]
 
     for channel_id in ids:
-        # CD.channelCommentExtract(channel_id, multithreading=False)
+        # DD.channelCommentExtract(channel_id, multithreading=False)
         print('dealing with', channel_id)
-        CD.channelVideoStatisticsExtract(channel_id, multithreading=True)
+        DD.channelVideoStatisticsExtract(channel_id, multithreading=True)
 
 
 if __name__ == '__main__':

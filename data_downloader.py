@@ -28,8 +28,6 @@ VIDEO_API = 'https://www.googleapis.com/youtube/v3/videos?part=snippet,statistic
 
 SEARCH_API = 'https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&type=channel&q={query}&key={key}'
 
-queue = Queue(maxsize=4)
-statisticsQueue = Queue(maxsize=128)
 queueDoneLock = threading.Lock()
 
 
@@ -64,8 +62,6 @@ def searchRequest(query):
 
 
 def getVideoIdByChannelId(channelId, queue=None, multithreading=False):
-    queueDoneLock.acquire()
-
     PB.progress(0, 100)
     page_info = channelRequest(channelId)
     if len(page_info['items']) < 1:
@@ -125,7 +121,6 @@ def getVideoIdByChannelId(channelId, queue=None, multithreading=False):
     if not multithreading:
         return video_ids
     else:
-        queueDoneLock.release()
         return
 
 
@@ -157,7 +152,7 @@ def channelCommentExtract(channel_id, multithreading=False, thread_num=16):
         pass
 
 
-def multithreadingCommentExtract():
+def multithreadingCommentExtract(queue):
     while True:
         video_id = queue.get()
 
@@ -173,9 +168,7 @@ def multithreadingCommentExtract():
             queue.task_done()
 
 
-def multithreadingSaveStastics(channelTitle):
-    global statisticsQueue
-
+def multithreadingSaveStastics(channelTitle, statisticsQueue):
     root_path = os.path.abspath('.')
     filename = root_path + '/ChannelStatistics/' + channelTitle + '.csv'
     with open(filename, 'a', encoding='utf-8-sig', newline='') as csvfile:
@@ -183,14 +176,22 @@ def multithreadingSaveStastics(channelTitle):
 
         while True:
             curr_statistics = statisticsQueue.get()
+
+            if curr_statistics == '--thread-end--':
+                break
+
             writer.writerow(curr_statistics)
             statisticsQueue.task_done()
 
 
 
-def multithreadingStatisticsExtract():
+def multithreadingStatisticsExtract(queue, statisticsQueue):
     while True:
         video_id = queue.get()
+
+        if video_id == '--thread-end--':
+            break
+
         curr_statistics = statisticsExtract(video_id)
         snippet = curr_statistics['snippet']
         statistics = curr_statistics['statistics']
@@ -229,22 +230,31 @@ def channelVideoStatisticsExtract(channel_id, multithreading=False, thread_num=3
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
 
-        global queue
         queue = Queue(maxsize=thread_num)
+        statisticsQueue = Queue(maxsize=128)
+
+        getterThreads = []
         for i in range(thread_num):
-            t = threading.Thread(target=multithreadingStatisticsExtract)
+            t = threading.Thread(target=multithreadingStatisticsExtract,args=(queue,statisticsQueue,))
             t.daemon = True
+            getterThreads.append(t)
             t.start()
 
-        t = threading.Thread(target=multithreadingSaveStastics, args=(title,))
-        t.daemon = True
-        t.start()
+        writerThread = threading.Thread(target=multithreadingSaveStastics, args=(title,statisticsQueue,))
+        writerThread.start()
 
         getVideoIdByChannelId(channel_id, queue, True)
-        queueDoneLock.acquire()
         queue.join()
         statisticsQueue.join()
-        queueDoneLock.release()
+
+        for i in range(thread_num):
+            queue.put('--thread-end--')
+        
+        statisticsQueue.put('--thread-end--')
+
+        for i in range(thread_num):
+            getterThreads[i].join()
+        writerThread.join()
 
     else:
         print('Getting channel video ids...')
