@@ -14,7 +14,7 @@ proxies = {
     # 'https': 'http://127.0.0.1:2080'
 }
 
-key = 'AIzaSyBsHts_r9-a-4_xRuWgiuBHLWfe9wWuWfQ'
+key = ''
 
 COMMENT_API_MORE_PAGE = 'https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&maxResults=100&pageToken={pageToken}&videoId={videoId}&key={key}'
 COMMENT_API = 'https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&maxResults=100&videoId={videoId}&key={key}'
@@ -30,7 +30,8 @@ SEARCH_API = 'https://www.googleapis.com/youtube/v3/search?part=snippet&maxResul
 
 queue = Queue(maxsize=4)
 statisticsQueue = Queue(maxsize=128)
-lock = threading.Lock()
+queueDoneLock = threading.Lock()
+
 
 fieldnames = ['title', 'channelTitle', 'description', 'tags', 'publishedAt', 'viewCount', 'likeCount',
               'dislikeCount', 'favoriteCount', 'commentCount']
@@ -63,6 +64,8 @@ def searchRequest(query):
 
 
 def getVideoIdByChannelId(channelId, queue=None, multithreading=False):
+    queueDoneLock.acquire()
+
     PB.progress(0, 100)
     page_info = channelRequest(channelId)
     if len(page_info['items']) < 1:
@@ -122,6 +125,7 @@ def getVideoIdByChannelId(channelId, queue=None, multithreading=False):
     if not multithreading:
         return video_ids
     else:
+        queueDoneLock.release()
         return
 
 
@@ -185,8 +189,6 @@ def multithreadingSaveStastics(channelTitle):
 
 
 def multithreadingStatisticsExtract():
-    global lock
-
     while True:
         video_id = queue.get()
         curr_statistics = statisticsExtract(video_id)
@@ -239,8 +241,10 @@ def channelVideoStatisticsExtract(channel_id, multithreading=False, thread_num=3
         t.start()
 
         getVideoIdByChannelId(channel_id, queue, True)
+        queueDoneLock.acquire()
         queue.join()
         statisticsQueue.join()
+        queueDoneLock.release()
 
     else:
         print('Getting channel video ids...')

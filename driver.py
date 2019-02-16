@@ -62,11 +62,22 @@ def main():
     # comments = CD.commentExtract(videoId, count)
     #
     # FS.fancySentiment(comments)
-    ids = ['CGTN',
-           'CCTV中国中央电视台',
-           'People\'s Daily, China 人民日报',
-           'SMG上海电视台官方频道 SMG Shanghai TV Official Channel',
-           'ChineseCultureCtr',
+    ids = ['李子柒',
+            'Li Ziqi Style',
+            '滇西小哥',
+            '乡间小蓉',
+            '酒鬼小莉',
+            '山药视频',
+            '华农兄弟',
+            '野食小哥',
+            '龙梅梅L',
+            '二米炊烟',
+            '中国日报CHINADAILY官方频道OFFICIAL CHANNEL',
+            'CGTN',
+            'CCTV中国中央电视台',
+            'People\'s Daily, China 人民日报',
+            'SMG上海电视台官方频道 SMG Shanghai TV Official Channel',
+            'ChineseCultureCtr',
            ]
 
     for channel_id in ids:
