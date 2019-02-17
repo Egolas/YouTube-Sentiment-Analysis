@@ -190,6 +190,7 @@ def multithreadingStatisticsExtract(queue, statisticsQueue):
         video_id = queue.get()
 
         if video_id == '--thread-end--':
+            queue.task_done()
             break
 
         curr_statistics = statisticsExtract(video_id)
