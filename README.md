@@ -1,13 +1,14 @@
 # YouTube-Sentiment-Analysis
 
-Scrape all the YouTube comments using api.
+- Scrape search result using api.
+- Scrape all the YouTube comments using api.
+- Scrape all video info in a certain channel using api.
 
 ## Description :
+
+Multithreading scraping feature.
+
 This project works by scraping YouTube comments and identify the sentiment of comments.
-
-The directory FancySentiment shows the WordCloud (most frequent words) of the comments.
-
-The directory CommentSentiment shows the positive/negative sentiment (using NaiveBayesClassifier) of the comments.
 
 ## Prerequisite :
 _Python 3_
@@ -42,8 +43,6 @@ _wordcloud package :_
 ## Running the file :
 First input the __API key__ in the file.
 
-__CommentSentiment/comment_extract.py__
-
-__FancySentiment/comment_downloader.py__
+__data_downloader.py__
 
 Then run the __driver.py__ file.
