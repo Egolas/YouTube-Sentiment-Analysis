@@ -63,29 +63,14 @@ def main():
     # comments = DD.commentExtract(videoId, count)
     #
     # FS.fancySentiment(comments)
-    ids = ['李子柒',
-            'Li Ziqi Style',
-            '滇西小哥',
-            '乡间小蓉',
-            '酒鬼小莉',
-            '山药视频',
-            '华农兄弟',
-            '野食小哥',
-            '龙梅梅L',
-            '二米炊烟',
-            '中国日报CHINADAILY官方频道OFFICIAL CHANNEL',
-            'CGTN',
-            'CCTV中国中央电视台',
-            'People\'s Daily, China 人民日报',
-            'SMG上海电视台官方频道 SMG Shanghai TV Official Channel',
-            'ChineseCultureCtr',
-           ]
 
-    for channel_id in ids:
-        # DD.channelCommentExtract(channel_id, multithreading=False)
-        print('dealing with', channel_id)
-        DD.channelVideoStatisticsExtract(channel_id, multithreading=True)
+    # channel_id = ''
+    # # DD.channelCommentExtract(channel_id, multithreading=False)
+    # print('dealing with', channel_id)
+    # DD.channelVideoStatisticsExtract(channel_id, multithreading=True)
 
+    withoutTopics = ['Music', 'Politics', 'Film', 'Military', 'Sport']
+    DD.getSearchResultStatistics("chinese", "video", totalNum=1000,  multithreading=True, withoutTopics=withoutTopics)
 
 if __name__ == '__main__':
     main()

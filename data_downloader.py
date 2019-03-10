@@ -7,58 +7,251 @@ import time, threading
 from queue import Queue
 import pickle
 import csv
+import time
 from threading import Lock
 
 proxies = {
-    # 'http': 'http://127.0.0.1:2080',
-    # 'https': 'http://127.0.0.1:2080'
+    'http': 'http://127.0.0.1:2080',
+    'https': 'http://127.0.0.1:2080'
 }
 
-key = ''
+key = 'AIzaSyBHccQAeffX7iSZrAv8k8F4nY6sTmn1mfo'
 
-COMMENT_API_MORE_PAGE = 'https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&maxResults=100&pageToken={pageToken}&videoId={videoId}&key={key}'
-COMMENT_API = 'https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&maxResults=100&videoId={videoId}&key={key}'
+commentDefaultPayload = {'key': key, 'maxResults': 100, 'part': 'snippet'}
+# COMMENT_API_MORE_PAGE = 'https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&maxResults=100&pageToken={pageToken}&videoId={videoId}&key={key}'
+COMMENT_API = 'https://www.googleapis.com/youtube/v3/commentThreads'
 
-CHANNEL_API = 'https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails&maxResults=50&id={id}&key={key}'
+channelDefaultPayload = {'key': key, 'maxResults': 50, 'part': 'snippet,statistics,contentDetails'}
+CHANNEL_API = 'https://www.googleapis.com/youtube/v3/channels'
 
-PLAYLIST_API_MORE_PAGE = 'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&pageToken={pageToken}&playlistId={playlistId}&key={key}'
-PLAYLIST_API = 'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId={playlistId}&key={key}'
+playlistDefaultPayload = {'key': key, 'maxResults': 50, 'part': 'snippet'}
+# PLAYLIST_API_MORE_PAGE = 'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&pageToken={pageToken}&playlistId={playlistId}&key={key}'
+PLAYLIST_API = 'https://www.googleapis.com/youtube/v3/playlistItems'
 
-VIDEO_API = 'https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&maxResults=5&id={id}&key={key}'
+videoDefaultPayload = {'key': key, 'part': 'snippet,contentDetails,topicDetails,statistics', 'maxResults': 5}
+VIDEO_API = 'https://www.googleapis.com/youtube/v3/videos'
 
-SEARCH_API = 'https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&type=channel&q={query}&key={key}'
+searchDefaultPayload = {'key': key, 'part': 'snippet', 'maxResults': 50}
+SEARCH_API = 'https://www.googleapis.com/youtube/v3/search'
+# SEARCH_API_MORE_PAGE = 'https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=50&pageToken={pageToken}&type={type}&q={query}&key={key}'
 
 queueDoneLock = threading.Lock()
-
 
 fieldnames = ['title', 'channelTitle', 'description', 'tags', 'publishedAt', 'viewCount', 'likeCount',
               'dislikeCount', 'favoriteCount', 'commentCount']
 
 
 def channelRequest(channelId):
-    page_info = requests.get(CHANNEL_API.format(id=channelId, key=key), proxies=proxies)
+    payload = channelDefaultPayload
+    payload['id'] = channelId
+    page_info = requests.get(CHANNEL_API, params=payload, proxies=proxies)
     while page_info.status_code != 200:
         if page_info.status_code != 429:
             print("Request error")
             sys.exit()
 
         time.sleep(20)
-        page_info = requests.get(CHANNEL_API.format(id=channelId, key=key), proxies=proxies)
+        page_info = requests.get(CHANNEL_API, params=payload, proxies=proxies)
     page_info = page_info.json()
     return page_info
 
 
-def searchRequest(query):
-    page_info = requests.get(SEARCH_API.format(query=query, key=key), proxies=proxies)
-    while page_info.status_code != 200:
-        if page_info.status_code != 429:
-            print("Request error")
-            sys.exit()
+def searchRequest(query, type, pageToken=None, publishedAfter=None, publishedBefore=None):
+    if pageToken == None:
+        payload = searchDefaultPayload
+        payload['query'] = query
+        payload['type'] = type
+        payload['publishedAfter'] = publishedAfter
+        payload['publishedBefore'] = publishedBefore
+        page_info = requests.get(SEARCH_API, params=payload,
+                                 proxies=proxies)
+        while page_info.status_code != 200:
+            if page_info.status_code != 429:
+                print("Request error")
+                sys.exit()
 
-        time.sleep(20)
-        page_info = requests.get(SEARCH_API.format(query=query, key=key), proxies=proxies)
-    page_info = page_info.json()
-    return page_info
+            time.sleep(20)
+            page_info = requests.get(SEARCH_API, params=payload,
+                                     proxies=proxies)
+        page_info = page_info.json()
+        return page_info
+    else:
+        payload = searchDefaultPayload
+        payload['query'] = query
+        payload['type'] = type
+        payload['pageToken'] = pageToken
+        payload['publishedAfter'] = publishedAfter
+        payload['publishedBefore'] = publishedBefore
+        page_info = requests.get(SEARCH_API, params=payload,
+                                 proxies=proxies)
+        while page_info.status_code != 200:
+            if page_info.status_code != 429:
+                print("Request error")
+                sys.exit()
+
+            time.sleep(20)
+            page_info = requests.get(SEARCH_API, params=payload,
+                                     proxies=proxies)
+        page_info = page_info.json()
+        return page_info
+
+
+def getSearchResultIds(query, type, totalNum=500, publishedAfter=None, publishedBefore=None, queue=None,
+                       multithreading=False):
+    print('Getting ids...')
+    PB.progress(0, 100)
+
+    videoIds = []
+    page_info = searchRequest(query, type)
+    totalResultNum = page_info['pageInfo']['totalResults']
+
+    currNum = 0
+    searchedNum = 0
+    for item in page_info['items']:
+        searchedNum += 1
+
+        id = item['id']['videoId']
+        if multithreading is True:
+            queue.put(id)
+        else:
+            videoIds.append(id)
+        currNum += 1
+        PB.progress(currNum, min(totalResultNum, totalNum),
+                    msg="Curr num {:d}, serched {:d}, objective num {:d}, total result {:d}".format(currNum,
+                                                                                                    searchedNum,
+                                                                                                    totalNum,
+                                                                                                    totalResultNum))
+
+        if currNum >= min(totalResultNum, totalNum):
+            print('Overflow')
+            break
+
+    while 'nextPageToken' in page_info and currNum < min(totalResultNum, totalNum):
+        page_info = searchRequest(query, type, page_info['nextPageToken'])
+        for item in page_info['items']:
+            searchedNum += 1
+
+            id = item['id']['videoId']
+            if multithreading is True:
+                queue.put(id)
+            else:
+                videoIds.append(id)
+            currNum += 1
+            PB.progress(currNum, min(totalResultNum, totalNum),
+                        msg="Curr num {:d}, serched {:d}, objective num {:d}, total result {:d}".format(currNum,
+                                                                                                        searchedNum,
+                                                                                                        totalNum,
+                                                                                                        totalResultNum))
+            if currNum >= min(totalResultNum, totalNum):
+                print('Overflow')
+                break
+
+    print()
+
+    if 'nextPageToken' not in page_info and currNum < min(totalResultNum, totalNum):
+        print("No more video matched conditions.")
+
+    print("Id getting procedure done.")
+    return videoIds
+
+
+def getChannelStatistics(channel_id):
+    c_statistics = {}
+    try:
+        page_info = channelRequest(channel_id)['items'][0]
+        c_statistics['channel_title'] = page_info['snippet']['title']
+        c_statistics['channel_subscriberCount'] = page_info['statistics']['subscriberCount']
+        c_statistics['channel_registeredAt'] = page_info['snippet']['publishedAt']
+        c_statistics['channel_viewCount'] = page_info['statistics']['viewCount']
+    except Exception as err:
+        c_statistics['channel_title'] = '! Error: channel isn\'t accessible'
+        pass
+
+    return c_statistics
+
+
+# only for type is 'video', others haven't implemented
+def getSearchResultStatistics(query, type, totalNum=500, withoutTopics=None, publishedAfter=None, publishedBefore=None,
+                              multithreading=False, thread_num=32):
+    field_names = ['link', 'title', 'topicCategories', 'description', 'tags', 'publishedAt',
+                   'viewCount', 'likeCount',
+                   'dislikeCount', 'favoriteCount', 'commentCount', 'channel_title', 'channel_subscriberCount',
+                   'channel_registeredAt', 'channel_viewCount']
+
+    if multithreading:
+        with open('SearchStatistics/' + query + '.csv', 'w', encoding='utf-8-sig', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=field_names)
+            writer.writeheader()
+
+        queue = Queue(maxsize=thread_num)
+        statisticsQueue = Queue(maxsize=128)
+
+        getterThreads = []
+        for i in range(thread_num):
+            t = threading.Thread(target=multithreadingGetSearchResultStatistics, args=(queue, statisticsQueue,))
+            getterThreads.append(t)
+            t.start()
+        if withoutTopics is None:
+            writerThread = threading.Thread(target=multithreadingSaveSearchStastics, args=(query, statisticsQueue,))
+        else:
+            writerThread = threading.Thread(target=multithreadingSaveSearchStastics,
+                                            args=(query, statisticsQueue, withoutTopics,))
+        writerThread.start()
+
+        getSearchResultIds(query, type, totalNum, publishedAfter=publishedAfter, publishedBefore=publishedBefore,
+                           queue=queue, multithreading=True)
+        queue.join()
+        statisticsQueue.join()
+
+        for i in range(thread_num):
+            queue.put('--thread-end--')
+
+        statisticsQueue.put('--thread-end--')
+
+        for i in range(thread_num):
+            getterThreads[i].join()
+        writerThread.join()
+
+    else:
+        videoIds = getSearchResultIds(query, type, totalNum, publishedAfter=publishedAfter,
+                                      publishedBefore=publishedBefore)
+
+        statisticsList = []
+
+        print('Getting statistics...')
+        PB.progress(0, 100)
+        totalNum = len(videoIds)
+
+        for i, video_id in enumerate(videoIds):
+            PB.progress(i + 1, totalNum)
+            link = r'https://www.youtube.com/watch?v=' + video_id
+            curr_statistics = statisticsExtract(video_id)
+            snippet = curr_statistics['snippet']
+            channelId = snippet['channelId']
+            statistics = curr_statistics['statistics']
+
+            info = snippet
+            info['link'] = link
+            info.update(statistics)
+
+            if 'topicDetails' in curr_statistics:
+                info.update(curr_statistics['topicDetails'])
+
+            if 'topicCategories' in info:
+                info['topicCategories'] = [x.split('/')[-1] for x in info['topicCategories']]
+
+            channel_statistics = getChannelStatistics(info['channelId'])
+            info.update(channel_statistics)
+
+            info = {dic_key: value for dic_key, value in info.items() if dic_key in field_names}
+            statisticsList.append(info)
+
+        with open('SearchStatistics/' + query + '.csv', 'w', encoding='utf-8-sig', newline='') as csv_file:
+            writer = csv.DictWriter(csv_file, fieldnames=field_names)
+            writer.writeheader()
+
+            for info in statisticsList:
+                writer.writerow(info)
 
 
 def getVideoIdByChannelId(channelId, queue=None, multithreading=False):
@@ -72,14 +265,16 @@ def getVideoIdByChannelId(channelId, queue=None, multithreading=False):
 
     playlist_id = page_info['items'][0]['contentDetails']['relatedPlaylists']['uploads']
 
-    page_info = requests.get(PLAYLIST_API.format(playlistId=playlist_id, key=key), proxies=proxies)
+    payload = playlistDefaultPayload
+    payload['playlistId'] = playlist_id
+    page_info = requests.get(PLAYLIST_API, params=payload, proxies=proxies)
     while page_info.status_code != 200:
         if page_info.status_code != 429:
             print("Request error")
             sys.exit()
 
         time.sleep(20)
-        page_info = requests.get(PLAYLIST_API.format(playlistId=playlist_id, key=key), proxies=proxies)
+        page_info = requests.get(PLAYLIST_API, params=payload, proxies=proxies)
     page_info = page_info.json()
     total_num = page_info['pageInfo']['totalResults']
     video_ids = []
@@ -96,9 +291,13 @@ def getVideoIdByChannelId(channelId, queue=None, multithreading=False):
 
     while 'nextPageToken' in page_info:
         temp = page_info
+
+        payload = playlistDefaultPayload
+        payload['playlistId'] = playlist_id
+        payload['nextPageToken'] = temp['nextPageToken']
+
         page_info = requests.get(
-            PLAYLIST_API_MORE_PAGE.format(playlistId=playlist_id, key=key, pageToken=temp['nextPageToken']),
-            proxies=proxies)
+            PLAYLIST_API, params=payload, proxies=proxies)
         while page_info.status_code != 200:
             if page_info.status_code != 429:
                 print("Request error")
@@ -106,8 +305,7 @@ def getVideoIdByChannelId(channelId, queue=None, multithreading=False):
 
             time.sleep(20)
             page_info = requests.get(
-                PLAYLIST_API_MORE_PAGE.format(playlistId=playlist_id, key=key, pageToken=temp['nextPageToken']),
-                proxies=proxies)
+                PLAYLIST_API, params=payload, proxies=proxies)
         page_info = page_info.json()
         for item in page_info['items']:
             curr_num += 1
@@ -122,6 +320,49 @@ def getVideoIdByChannelId(channelId, queue=None, multithreading=False):
         return video_ids
     else:
         return
+
+
+def multithreadingGetSearchResultStatistics(queue, statisticsQueue):
+    field_names = ['link', 'title', 'topicCategories', 'description', 'tags', 'publishedAt',
+                   'viewCount', 'likeCount',
+                   'dislikeCount', 'favoriteCount', 'commentCount', 'channel_title', 'channel_subscriberCount',
+                   'channel_registeredAt', 'channel_viewCount']
+
+    while True:
+        video_id = queue.get()
+
+        if video_id == '--thread-end--':
+            queue.task_done()
+            print("Received end thread signal.")
+            break
+
+        link = r'https://www.youtube.com/watch?v=' + video_id
+        curr_statistics = statisticsExtract(video_id)
+        snippet = curr_statistics['snippet']
+        channelId = snippet['channelId']
+        statistics = curr_statistics['statistics']
+
+        info = snippet
+        info['link'] = link
+        info.update(statistics)
+
+        if 'topicDetails' in curr_statistics:
+            info.update(curr_statistics['topicDetails'])
+
+        if 'topicCategories' in info:
+            info['topicCategories'] = [x.split('/')[-1] for x in info['topicCategories']]
+
+        try:
+            channel_statistics = getChannelStatistics(info['channelId'])
+            info.update(channel_statistics)
+        except:
+            pass
+
+        info = {dic_key: value for dic_key, value in info.items() if dic_key in field_names}
+        statisticsQueue.put(info)
+        queue.task_done()
+
+    # print('Getter thread ended.')
 
 
 def channelCommentExtract(channel_id, multithreading=False, thread_num=16):
@@ -168,6 +409,38 @@ def multithreadingCommentExtract(queue):
             queue.task_done()
 
 
+def multithreadingSaveSearchStastics(searchKeyWords, statisticsQueue, withoutTopics=None):
+    field_names = ['link', 'title', 'topicCategories', 'description', 'tags', 'publishedAt',
+                   'viewCount', 'likeCount',
+                   'dislikeCount', 'favoriteCount', 'commentCount', 'channel_title', 'channel_subscriberCount',
+                   'channel_registeredAt', 'channel_viewCount']
+
+    root_path = os.path.abspath('.')
+    filename = root_path + '/SearchStatistics/' + searchKeyWords + '.csv'
+    with open(filename, 'a', encoding='utf-8-sig', newline='') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=field_names)
+
+        while True:
+            curr_statistics = statisticsQueue.get()
+
+            if curr_statistics == '--thread-end--':
+                break
+
+            if withoutTopics is None:
+                writer.writerow(curr_statistics)
+                statisticsQueue.task_done()
+            else:
+                if 'topicCategories' in curr_statistics and len(
+                        [topic for topic in curr_statistics['topicCategories'] if topic in withoutTopics]) > 0:
+                    statisticsQueue.task_done()
+                    continue
+
+                writer.writerow(curr_statistics)
+                statisticsQueue.task_done()
+
+    print('Writer thread ended.')
+
+
 def multithreadingSaveStastics(channelTitle, statisticsQueue):
     root_path = os.path.abspath('.')
     filename = root_path + '/ChannelStatistics/' + channelTitle + '.csv'
@@ -182,7 +455,6 @@ def multithreadingSaveStastics(channelTitle, statisticsQueue):
 
             writer.writerow(curr_statistics)
             statisticsQueue.task_done()
-
 
 
 def multithreadingStatisticsExtract(queue, statisticsQueue):
@@ -205,14 +477,16 @@ def multithreadingStatisticsExtract(queue, statisticsQueue):
 
 
 def getChannelName(channelId):
-    page_info = requests.get(CHANNEL_API.format(id=channelId, key=key), proxies=proxies)
+    payload = channelDefaultPayload
+    payload['id'] = channelId
+    page_info = requests.get(CHANNEL_API, params=payload, proxies=proxies)
     while page_info.status_code != 200:
         if page_info.status_code != 429:
             print("Request error")
             sys.exit()
 
         time.sleep(20)
-        page_info = requests.get(CHANNEL_API.format(id=channelId, key=key), proxies=proxies)
+        page_info = requests.get(CHANNEL_API, params=payload, proxies=proxies)
     page_info = page_info.json()
     title = page_info['items'][0]['snippet']['title']
     return title
@@ -226,8 +500,6 @@ def channelVideoStatisticsExtract(channel_id, multithreading=False, thread_num=3
 
     if multithreading:
         with open('ChannelStatistics/' + title + '.csv', 'w', encoding='utf-8-sig', newline='') as csvfile:
-            fieldnames = ['title', 'channelTitle', 'description', 'tags', 'publishedAt', 'viewCount', 'likeCount',
-                          'dislikeCount', 'favoriteCount', 'commentCount']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
 
@@ -236,12 +508,12 @@ def channelVideoStatisticsExtract(channel_id, multithreading=False, thread_num=3
 
         getterThreads = []
         for i in range(thread_num):
-            t = threading.Thread(target=multithreadingStatisticsExtract,args=(queue,statisticsQueue,))
+            t = threading.Thread(target=multithreadingStatisticsExtract, args=(queue, statisticsQueue,))
             t.daemon = True
             getterThreads.append(t)
             t.start()
 
-        writerThread = threading.Thread(target=multithreadingSaveStastics, args=(title,statisticsQueue,))
+        writerThread = threading.Thread(target=multithreadingSaveStastics, args=(title, statisticsQueue,))
         writerThread.start()
 
         getVideoIdByChannelId(channel_id, queue, True)
@@ -250,7 +522,7 @@ def channelVideoStatisticsExtract(channel_id, multithreading=False, thread_num=3
 
         for i in range(thread_num):
             queue.put('--thread-end--')
-        
+
         statisticsQueue.put('--thread-end--')
 
         for i in range(thread_num):
@@ -275,11 +547,8 @@ def channelVideoStatisticsExtract(channel_id, multithreading=False, thread_num=3
         print('done')
 
 
-
 def saveStastics(statisticsDict, channelTitle):
     with open('ChannelStatistics/' + channelTitle + '.csv', 'w', encoding='utf-8-sig', newline='') as csvfile:
-        fieldnames = ['title', 'channelTitle', 'description', 'tags', 'publishedAt', 'viewCount', 'likeCount',
-                      'dislikeCount', 'favoriteCount', 'commentCount']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -294,20 +563,28 @@ def saveStastics(statisticsDict, channelTitle):
 
 
 def statisticsExtract(videoId):
-    page_info = requests.get(VIDEO_API.format(id=videoId, key=key), proxies=proxies)
+    payload = videoDefaultPayload
+    payload['id'] = videoId
+    page_info = requests.get(VIDEO_API, params=payload, proxies=proxies)
     page_info = page_info.json()
+
+    page_info_item = page_info['items'][0]
     infoDict = {}
-    infoDict['snippet'] = page_info['items'][0]['snippet']
-    infoDict['statistics'] = page_info['items'][0]['statistics']
+    infoDict['snippet'] = page_info_item['snippet']
+    infoDict['statistics'] = page_info_item['statistics']
+    if 'topicDetails' in page_info_item:
+        infoDict['topicDetails'] = page_info_item['topicDetails']
     return infoDict
 
 
 def commentExtract(videoId, count=-1):
     # print("Comments downloading")
-    page_info = requests.get(COMMENT_API.format(videoId=videoId, key=key), proxies=proxies)
+    payload = commentDefaultPayload
+    payload['videoId'] = videoId
+    page_info = requests.get(COMMENT_API, params=payload, proxies=proxies)
     while page_info.status_code != 200:
         time.sleep(20)
-        page_info = requests.get(COMMENT_API.format(videoId=videoId, key=key), proxies=proxies)
+        page_info = requests.get(COMMENT_API, params=payload, proxies=proxies)
 
     page_info = page_info.json()
 
@@ -324,15 +601,16 @@ def commentExtract(videoId, count=-1):
     # INFINTE SCROLLING
     while 'nextPageToken' in page_info:
         temp = page_info
+        payload = commentDefaultPayload
+        payload['videoId'] = videoId
+        payload['nextPageToken'] = temp['nextPageToken']
         page_info = requests.get(
-            COMMENT_API_MORE_PAGE.format(videoId=videoId, key=key, pageToken=page_info['nextPageToken']),
-            proxies=proxies)
+            COMMENT_API, params=payload, proxies=proxies)
 
         while page_info.status_code != 200:
             time.sleep(20)
             page_info = requests.get(
-                COMMENT_API_MORE_PAGE.format(videoId=videoId, key=key, pageToken=temp['nextPageToken']),
-                proxies=proxies)
+                COMMENT_API, params=payload, proxies=proxies)
         page_info = page_info.json()
 
         for i in range(len(page_info['items'])):
