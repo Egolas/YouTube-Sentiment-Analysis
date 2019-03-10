@@ -3,12 +3,7 @@
 - Scrape search result using api.
 - Scrape all the YouTube comments using api.
 - Scrape all video info in a certain channel using api.
-
-## Description :
-
-Multithreading scraping feature.
-
-This project works by scraping YouTube comments and identify the sentiment of comments.
+- Multithreading scraping feature.
 
 ## Prerequisite :
 _Python 3_
