@@ -15,17 +15,15 @@ proxies = {
     'https': 'http://127.0.0.1:2080'
 }
 
-key = 'AIzaSyBHccQAeffX7iSZrAv8k8F4nY6sTmn1mfo'
+key = ''
 
 commentDefaultPayload = {'key': key, 'maxResults': 100, 'part': 'snippet'}
-# COMMENT_API_MORE_PAGE = 'https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&maxResults=100&pageToken={pageToken}&videoId={videoId}&key={key}'
 COMMENT_API = 'https://www.googleapis.com/youtube/v3/commentThreads'
 
 channelDefaultPayload = {'key': key, 'maxResults': 50, 'part': 'snippet,statistics,contentDetails'}
 CHANNEL_API = 'https://www.googleapis.com/youtube/v3/channels'
 
 playlistDefaultPayload = {'key': key, 'maxResults': 50, 'part': 'snippet'}
-# PLAYLIST_API_MORE_PAGE = 'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&pageToken={pageToken}&playlistId={playlistId}&key={key}'
 PLAYLIST_API = 'https://www.googleapis.com/youtube/v3/playlistItems'
 
 videoDefaultPayload = {'key': key, 'part': 'snippet,contentDetails,topicDetails,statistics', 'maxResults': 5}
@@ -33,13 +31,9 @@ VIDEO_API = 'https://www.googleapis.com/youtube/v3/videos'
 
 searchDefaultPayload = {'key': key, 'part': 'snippet', 'maxResults': 50}
 SEARCH_API = 'https://www.googleapis.com/youtube/v3/search'
-# SEARCH_API_MORE_PAGE = 'https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=50&pageToken={pageToken}&type={type}&q={query}&key={key}'
-
-queueDoneLock = threading.Lock()
 
 fieldnames = ['title', 'channelTitle', 'description', 'tags', 'publishedAt', 'viewCount', 'likeCount',
               'dislikeCount', 'favoriteCount', 'commentCount']
-
 
 def channelRequest(channelId):
     payload = channelDefaultPayload
